@@ -1,0 +1,313 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id               String    @id @default(uuid())
+  name             String
+  username         String    @unique
+  email            String    @unique
+  password         String
+  verifyCode       String
+  verifyCodeExpiry DateTime
+  isVerified       Boolean
+  forgotPassword   Boolean?
+  bio              String?
+  profilePic       Avatar[]
+  role             Role      @default(STUDENT)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  accounts         Account[]
+
+  courses          Course[]           @relation("InstructorCourses")
+  enrollments      Enrollment[]
+  sentMessages     Message[]          @relation("Sender")
+  recievedMessages Message[]          @relation("Recipient")
+  studyGroups      StudyGroupMember[]
+
+  GroupMessage  GroupMessage[]
+  Review        Review[]
+  Notification  Notification[]
+  Submission    Submission[]
+  Certification Certification[]
+  PollResponse  PollResponse[]
+  Comment       Comment[]
+  Course        Course[]
+}
+
+model Avatar {
+  id        Int     @id @default(autoincrement())
+  public_id String
+  url       String
+  User      User?   @relation(fields: [userId], references: [id])
+  userId    String?
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Course {
+  id          Int         @id @default(autoincrement())
+  title       String
+  description String
+  price       Int
+  markedPrice Int
+  userId       String
+  content     String
+  tags        String
+  level       String
+  demoUrl     String
+  benefits    String[]
+  prequisties String
+  user User @relation(fields: [userId], references: [id])
+  createAt      DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  instructor    User            @relation("InstructorCourses", fields: [instructorId], references: [id])
+  instructorId  String
+  enrollments   Enrollment[]
+  liveSessions  LiveSession[]
+  Review        Review[]
+  Resource      Resource[]
+  Assignment    Assignment[]
+  Certification Certification[]
+  courseData    CourseData[]
+  ratings       Int?
+  purchased     Int?
+}
+
+model Enrollment {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  course    Course   @relation(fields: [courseId], references: [id])
+  courseId  Int
+  progress  Float    @default(0.0)
+  status    Status   @default(ENROLLED)
+  createdAt DateTime @default(now())
+}
+
+model LiveSession {
+  id        Int      @id @default(autoincrement())
+  course    Course   @relation(fields: [courseId], references: [id])
+  courseId  Int
+  title     String
+  schedule  DateTime
+  recording String?
+  createdAt DateTime @default(now())
+  Poll      Poll[]
+}
+
+model Poll {
+  id            Int      @id @default(autoincrement())
+  liveSessionId Int
+  question      String
+  options       Json // Array of options (e.g., ["Option 1", "Option 2"])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  liveSession LiveSession    @relation(fields: [liveSessionId], references: [id])
+  responses   PollResponse[]
+}
+
+model PollResponse {
+  id          Int      @id @default(autoincrement())
+  pollId      Int
+  studentId   String
+  optionIndex Int // Index of the selected option
+  createdAt   DateTime @default(now())
+
+  poll    Poll @relation(fields: [pollId], references: [id])
+  student User @relation(fields: [studentId], references: [id])
+}
+
+model Message {
+  id          Int      @id @default(autoincrement())
+  content     String
+  sender      User     @relation("Sender", fields: [senderId], references: [id])
+  senderId    String
+  recipient   User     @relation("Recipient", fields: [recipientId], references: [id])
+  recipientId String
+  createdAt   DateTime @default(now())
+}
+
+model StudyGroup {
+  id          Int                @id @default(autoincrement())
+  name        String
+  description String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  members     StudyGroupMember[]
+  messages    GroupMessage[]
+}
+
+model StudyGroupMember {
+  id           Int        @id @default(autoincrement())
+  user         User       @relation(fields: [userId], references: [id])
+  userId       String
+  studyGroup   StudyGroup @relation(fields: [studyGroupId], references: [id])
+  studyGroupId Int
+  joinedAt     DateTime   @default(now())
+}
+
+model GroupMessage {
+  id           Int        @id @default(autoincrement())
+  content      String
+  sender       User       @relation(fields: [senderId], references: [id])
+  senderId     String
+  studyGroup   StudyGroup @relation(fields: [studyGroupId], references: [id])
+  studyGroupId Int
+  createdAt    DateTime   @default(now())
+}
+
+model Review {
+  id             Int       @id @default(autoincrement())
+  rating         Int
+  comment        String?
+  commentReplies Comment[]
+  user           User      @relation(fields: [userId], references: [id])
+  userId         String
+  course         Course    @relation(fields: [courseId], references: [id])
+  courseId       Int
+  createdAt      DateTime  @default(now())
+}
+
+model Comment {
+  id           Int        @id @default(autoincrement())
+  user         User       @relation(fields: [userId], references: [id])
+  review       Review     @relation(fields: [relationId], references: [id])
+  courseData   CourseData @relation(fields: [courseDataId], references: [id])
+  courseDataId Int
+  relationId   Int
+  userId       String
+  comment      String
+}
+
+model Link {
+  id           Int        @id @default(autoincrement())
+  url          String
+  courseData   CourseData @relation(fields: [courseDataId], references: [id])
+  courseDataId Int
+}
+
+model CourseData {
+  id             Int         @id @default(autoincrement())
+  title          String
+  videoUrl       String
+  VideoThumbnail Thumbnail[]
+  videoSection   String
+  videoLength    Int
+  videoPlayer    String
+  links          Link[]
+  suggestion     String
+  questions      Comment[]
+  Course         Course?     @relation(fields: [courseId], references: [id])
+  courseId       Int?
+}
+
+model Thumbnail {
+  id           Int         @id @default(autoincrement())
+  public_id    String
+  url          String
+  CourseData   CourseData? @relation(fields: [courseDataId], references: [id])
+  courseDataId Int?
+}
+
+model Resource {
+  id        Int          @id @default(autoincrement())
+  title     String
+  url       String
+  type      ResourceType
+  course    Course       @relation(fields: [courseId], references: [id])
+  courseId  Int
+  createdAt DateTime     @default(now())
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  content   String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Assignment {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  dueDate     DateTime
+  course      Course   @relation(fields: [courseId], references: [id])
+  courseId    Int
+  createdAt   DateTime @default(now())
+
+  submissions Submission[]
+}
+
+model Submission {
+  id           Int        @id @default(autoincrement())
+  content      String
+  user         User       @relation(fields: [userId], references: [id])
+  userId       String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id])
+  assignmentId Int
+  createdAt    DateTime   @default(now())
+}
+
+model Certification {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  awardedAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  course      Course   @relation(fields: [courseId], references: [id])
+  courseId    Int
+}
+
+enum ResourceType {
+  VIDEO
+  ARTICLE
+  LINK
+  OTHER
+}
+
+enum Role {
+  STUDENT
+  INSTRUCTOR
+  ADMIN
+}
+
+enum Status {
+  ENROLLED
+  COMPLETED
+  DROPPED
+}
